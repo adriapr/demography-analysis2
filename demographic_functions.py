@@ -3,6 +3,7 @@
 
 #from plotly.graph_objs import *
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import numpy as np
 import datetime
 import string
@@ -18,7 +19,7 @@ cp = [(179,0,0), (227,74,51), (252,141,89), (54,144,192)]
 
 # Colour pallete (independent groups)
 cp2 = [(166,206,227), (31,120,180), (178,223,138), (51,160,44), (251,154,153), \
-       (227,26,28), (253,191,111), (255,127,0), (202,178,214), (106,61,154)] 
+       (227,26,28), (253,191,111), (255,127,0), (202,178,214), (106,61,154)]
 
 # Scale the RGB values to the [0, 1] range, which is the format matplotlib accepts.    
 for i in range(len(cp)):    
@@ -115,10 +116,10 @@ def adjustName ( stringIN ):
 
     nameList = stringIN.split()
 
-    for nombre in nameList:
+    for i, nombre in enumerate(nameList):
         if nombre in dicNombresModernos:
             #print ( '%s -> %s  in  (%s)' % (nombre, dicNombresModernos[nombre], stringIN))
-            nombre = dicNombresModernos[nombre]
+            nameList[i] = dicNombresModernos[nombre]
             #print('.', end="")
 
     return ' '.join(nameList)
@@ -330,9 +331,7 @@ def printMostCommon( vec, n=float("inf") ):
     count = Counter(vec)
 
     print ("\nValores mas comunes")
-    for idx in range(len(count)):
-        if idx  > n-1:
-            break
+    for idx in range(min(len(count), n)):
         print ( "%4d : %s" % (count.most_common()[idx][1], count.most_common()[idx][0]) )
 
 # Distributions
@@ -531,6 +530,121 @@ def getAlmonecirMentions( nacimientos, defunciones ):
     
     remove2axis( ax )
 
+# most common names
+def commonNames(  dictionary, n=8, splitName=True ):
+
+    allNames = []
+    allYears = []
+
+    for d in dictionary:
+        if splitName:
+            names = d['nombreAjustado'].split()
+        else:
+            names = [d['nombreAjustado']]
+
+        try:
+            fecha = d['nacimientoEstimado']
+        except:
+            fecha = d['defuncionEstimado']
+
+        if names:
+            allNames.extend( names )
+            allYears.extend( [fecha.year] * len(names) )
+
+    count = Counter(allNames)
+
+    n = min(len(count), n)
+
+    # Text output
+    print ("Nombres mas comunes (unicos:%d | total:%d)" % (len(count), len(allNames)) )
+    for idx in range(n):
+        print ( "%4d : %s" % (count.most_common()[idx][1], count.most_common()[idx][0]) )
+
+    # Plot output
+    sc = []
+    fig = plt.figure(figsize=(20, 1+(n/2)))
+    ax = plt.subplot(111)
+
+    for idx in range(n):
+        name = count.most_common()[idx][0]
+        years = [allYears[i] for i,n in enumerate(allNames) if allNames[i] == name \
+                                                            and allYears[i] > 1610]
+        numName = len(years)
+        strLabel = name + " (" + str(numName) + ")"
+
+        sc.append( ax.scatter(years, [idx] * len(years), \
+                    color=cp2[idx%len(cp2)], marker='.', s=500, alpha=0.1, label=strLabel) )
+
+    # ax.legend( loc= 'best', handles=sc[::-1], frameon=False, scatterpoints = 1 )
+
+    xTicks = [b for b in range(1605, max(allYears)+5) if b % 10 == 0]
+    plt.xticks( xTicks )
+
+    yTicks = range(n)
+    yTicksLabels = [count.most_common()[idx][0] + " (" + str(count.most_common()[idx][1]) + ")" \
+                     for idx in range(n)]
+    plt.yticks( yTicks, yTicksLabels )
+
+    # ax.set_yticks( [] )
+    remove2axis( ax )
+    ax.spines['left'].set_visible(False)
+
+
+    # Plot Histograms
+    fig = plt.figure(figsize=(20, 8))
+    ax = plt.subplot(111)
+
+    minBin = 1625
+    maxBin = 1860
+    bins = range(minBin, maxBin + 1, 10)
+
+    validYears = [y for y in allYears if y > 1610]
+    hAll = np.histogram(validYears, bins)
+
+    np.seterr(divide='ignore', invalid='ignore')    # tolerate division by 0
+
+    h = []
+    ratio = []
+    for idx in range(n):
+        name = count.most_common()[idx][0]
+        years = [allYears[i] for i,n in enumerate(allNames) if allNames[i] == name and allYears[i] > 1610]
+        numName = len(years)
+        strLabel = name + " (" + str(numName) + ")"
+    
+        h.append( np.histogram(years, bins) )
+        ratio.append( h[-1][0] / hAll[0] * 100 )
+
+        ax.plot( hAll[1][:-1], ratio[-1],  color=cp2[idx%len(cp2)], \
+                    linewidth = '4', label=name)
+
+    ax.legend( loc= 'best', frameon=False )
+
+    ticks = [b for b in range(minBin-1, maxBin+1) if b % 10 == 0]
+    plt.xticks( ticks )
+    remove2axis( ax )
+
+    # Plot individual histograms
+    fig, ax = plt.subplots(n, sharex=True, sharey=True, figsize=(20, n*3))
+
+    for idx in range(n):
+        ax[idx].plot( bins[:-1], ratio[idx],  color=cp2[idx%len(cp2)], \
+                    linewidth = '4')
+        remove2axis( ax[idx] )
+        ax[idx].legend( [yTicksLabels[idx]], loc= 'best', frameon=False )
+
+
+    plt.xticks( ticks )
+
+    ax[0].set_title('Sharing both axes')
+    # Fine-tune figure; make subplots close to each other and hide x ticks for
+    # all but bottom plot.
+    fig.subplots_adjust(hspace=0.1)
+    plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False)
+
+
+
+
+
 # Events by year
 def plotEventByYear ( merged, str_event, str_ylabel ):
 
@@ -708,7 +822,7 @@ def childMotality( defunciones ):
 	#maxBin = max(vec)
 
     children = [d for d in defunciones if str(d['edadTexto']).upper() \
-                   in ['P', 'A', 'ALB', 'N', 'NIÑA', 'ŃIÑO']]
+                   in ['P', 'A', 'ALB', 'N', 'NIÑA', 'ŃIÑO', 'MN', 'MENOR']]
     adults 	 = [d for d in defunciones if d['edadTexto'] == '']
 
     minBin = 1610
