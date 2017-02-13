@@ -112,6 +112,7 @@ def adjustName ( stringIN ):
                             'Raymunda':  'Raimunda', \
                             'Joachin':   'Juaquin', \
                             'Juachin':   'Juaquin', \
+                            'Joaquin':   'Juaquin', \
                             'Joachim':   'Juaquin' }
 
     nameList = stringIN.split()
@@ -121,6 +122,8 @@ def adjustName ( stringIN ):
             #print ( '%s -> %s  in  (%s)' % (nombre, dicNombresModernos[nombre], stringIN))
             nameList[i] = dicNombresModernos[nombre]
             #print('.', end="")
+
+    #print( '%s | %s | %s' % (nameList, [' '.join(nameList)], [stringIN]) )
 
     return ' '.join(nameList)
 
@@ -516,9 +519,10 @@ def getAlmonecirMentions( nacimientos, defunciones ):
     for idNom in [6,4,2,1,0]:
 	#for idNom in range(max(lID)+1):
         xVec = [f.year for i,f in enumerate(lFecha) if lID[i] == idNom ]
-        yVec = [idNom] * len(xVec)
+        yVec = [idNom] * len(xVec) + np.random.normal(0,0.1,len(xVec))
+
         strLabel = string.capwords(lNomUnique[idNom]) + " (" + str(dictNombres[lNomUnique[idNom]]) + ")"
-        sc.append( ax.scatter(xVec, yVec, marker='.', s=500, alpha=0.6, color=cp2[idNom+1], label=strLabel) )
+        sc.append( ax.scatter(xVec, yVec, marker='.', s=200, alpha=0.5, color=cp2[idNom+1], label=strLabel) )
         
     ax.legend( loc= 'best', handles=sc[:], frameon=False, scatterpoints = 1 )
     ax.axis((1605,1855,-0.5,max(lID)+0.5))
@@ -537,10 +541,11 @@ def commonNames(  dictionary, n=8, splitName=True ):
     allYears = []
 
     for d in dictionary:
+        #print( '%s | %s' % (d['nombreAjustado'].split(), [d['nombreAjustado']]) )
         if splitName:
-            names = d['nombreAjustado'].split()
+            names = d['nombre'].split()
         else:
-            names = [d['nombreAjustado']]
+            names = [d['nombre']]
 
         try:
             fecha = d['nacimientoEstimado']
@@ -557,8 +562,8 @@ def commonNames(  dictionary, n=8, splitName=True ):
 
     # Text output
     print ("Nombres mas comunes (unicos:%d | total:%d)" % (len(count), len(allNames)) )
-    for idx in range(n):
-        print ( "%4d : %s" % (count.most_common()[idx][1], count.most_common()[idx][0]) )
+    # for idx in range(n):
+    #     print ( "%4d : %s" % (count.most_common()[idx][1], count.most_common()[idx][0]) )
 
     # Plot output
     sc = []
@@ -568,12 +573,17 @@ def commonNames(  dictionary, n=8, splitName=True ):
     for idx in range(n):
         name = count.most_common()[idx][0]
         years = [allYears[i] for i,n in enumerate(allNames) if allNames[i] == name \
-                                                            and allYears[i] > 1610]
+                                                            and allYears[i] > 1600]
         numName = len(years)
         strLabel = name + " (" + str(numName) + ")"
 
-        sc.append( ax.scatter(years, [idx] * len(years), \
-                    color=cp2[idx%len(cp2)], marker='.', s=500, alpha=0.1, label=strLabel) )
+         
+
+        xVec = years
+        yVec = [idx] * len(xVec) + np.random.normal(0,0.1,len(xVec))
+
+        sc.append( ax.scatter(xVec, yVec, \
+                    color=cp2[idx%len(cp2)], marker='.', s=100, alpha=0.2, label=strLabel) )
 
     # ax.legend( loc= 'best', handles=sc[::-1], frameon=False, scatterpoints = 1 )
 
@@ -588,58 +598,60 @@ def commonNames(  dictionary, n=8, splitName=True ):
     # ax.set_yticks( [] )
     remove2axis( ax )
     ax.spines['left'].set_visible(False)
+    ax.axis((1610,1860,-1,n+1))
 
 
     # Plot Histograms
-    fig = plt.figure(figsize=(20, 8))
-    ax = plt.subplot(111)
+    if False:
+        fig = plt.figure(figsize=(20, 8))
+        ax = plt.subplot(111)
 
-    minBin = 1625
-    maxBin = 1860
-    bins = range(minBin, maxBin + 1, 10)
+        minBin = 1625
+        maxBin = 1860
+        bins = range(minBin, maxBin + 1, 10)
 
-    validYears = [y for y in allYears if y > 1610]
-    hAll = np.histogram(validYears, bins)
+        validYears = [y for y in allYears if y > 1600]
+        hAll = np.histogram(validYears, bins)
 
-    np.seterr(divide='ignore', invalid='ignore')    # tolerate division by 0
+        np.seterr(divide='ignore', invalid='ignore')    # tolerate division by 0
 
-    h = []
-    ratio = []
-    for idx in range(n):
-        name = count.most_common()[idx][0]
-        years = [allYears[i] for i,n in enumerate(allNames) if allNames[i] == name and allYears[i] > 1610]
-        numName = len(years)
-        strLabel = name + " (" + str(numName) + ")"
-    
-        h.append( np.histogram(years, bins) )
-        ratio.append( h[-1][0] / hAll[0] * 100 )
+        h = []
+        ratio = []
+        for idx in range(n):
+            name = count.most_common()[idx][0]
+            years = [allYears[i] for i,n in enumerate(allNames) if allNames[i] == name and allYears[i] > 1610]
+            numName = len(years)
+            strLabel = name + " (" + str(numName) + ")"
+        
+            h.append( np.histogram(years, bins) )
+            ratio.append( h[-1][0] / hAll[0] * 100 )
 
-        ax.plot( hAll[1][:-1], ratio[-1],  color=cp2[idx%len(cp2)], \
-                    linewidth = '4', label=name)
+            ax.plot( hAll[1][:-1], ratio[-1],  color=cp2[idx%len(cp2)], \
+                        linewidth = '4', label=name)
 
-    ax.legend( loc= 'best', frameon=False )
+        ax.legend( loc= 'best', frameon=False )
 
-    ticks = [b for b in range(minBin-1, maxBin+1) if b % 10 == 0]
-    plt.xticks( ticks )
-    remove2axis( ax )
+        ticks = [b for b in range(minBin-1, maxBin+1) if b % 10 == 0]
+        plt.xticks( ticks )
+        remove2axis( ax )
 
-    # Plot individual histograms
-    fig, ax = plt.subplots(n, sharex=True, sharey=True, figsize=(20, n*3))
+        # Plot individual histograms
+        fig, ax = plt.subplots(n, sharex=True, sharey=True, figsize=(20, n*3))
 
-    for idx in range(n):
-        ax[idx].plot( bins[:-1], ratio[idx],  color=cp2[idx%len(cp2)], \
-                    linewidth = '4')
-        remove2axis( ax[idx] )
-        ax[idx].legend( [yTicksLabels[idx]], loc= 'best', frameon=False )
+        for idx in range(n):
+            ax[idx].plot( bins[:-1], ratio[idx],  color=cp2[idx%len(cp2)], \
+                        linewidth = '4')
+            remove2axis( ax[idx] )
+            ax[idx].legend( [yTicksLabels[idx]], loc= 'best', frameon=False )
 
 
-    plt.xticks( ticks )
+        plt.xticks( ticks )
 
-    ax[0].set_title('Sharing both axes')
-    # Fine-tune figure; make subplots close to each other and hide x ticks for
-    # all but bottom plot.
-    fig.subplots_adjust(hspace=0.1)
-    plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False)
+        ax[0].set_title('Sharing both axes')
+        # Fine-tune figure; make subplots close to each other and hide x ticks for
+        # all but bottom plot.
+        fig.subplots_adjust(hspace=0.1)
+        plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False)
 
 
 
@@ -816,46 +828,42 @@ def plotEventByMonth ( merged, str_event, str_ylabel ):
     remove2axis( ax )
 
 # Child mortality (using text data)
-def childMotality( defunciones ):
+def childMotality( nacimientos, defunciones ):
 
 	#minBin = min([v for v in vec if v > 1]) # exclude values with 1 (as they are default for empty ones)
 	#maxBin = max(vec)
 
-    children = [d for d in defunciones if str(d['edadTexto']).upper() \
-                   in ['P', 'A', 'ALB', 'N', 'NIÑA', 'ŃIÑO', 'MN', 'MENOR']]
-    adults 	 = [d for d in defunciones if d['edadTexto'] == '']
+    childDeaths = [d for d in defunciones if str(d['edadTexto']).upper() \
+                   in ['P', 'A', 'ALB', 'N', 'NIÑA', 'ŃIÑO']]
 
-    minBin = 1610
+    minBin = 1600
     maxBin = 1860
     
     bins = range(minBin, maxBin + 1, 10)
-    hChildren = np.histogram([p['defuncionEstimado'].year for p in children], bins)
-    hAduls    = np.histogram([p['defuncionEstimado'].year for p in adults], bins)
-    hAll      = np.histogram([p['defuncionEstimado'].year for p in defunciones], bins)
+    hDeaths = np.histogram([p['defuncionEstimado'].year for p in childDeaths], bins)
+    hBirths = np.histogram([p['nacimientoEstimado'].year for p in nacimientos], bins)
 
-    ratio = hChildren[0] / (hChildren[0] + hAduls[0]) * 100
+    ratio = hDeaths[0] / hBirths[0] * 100
 
-    print( ratio )
+    # print( ratio )
     
     # Plot distribution
     fig = plt.figure()
     ax = plt.subplot(111)
             
-    bAll = ax.bar( hAll[1][:-1], hAll[0], width=9, color='0.9', \
-                        align='center', linewidth = '0', label='No data')
-    bChildren = ax.bar( hChildren[1][:-1], hChildren[0], width=9, color=cp2[7], \
-                        align='center', linewidth = '0', label='Children')
-    bAdults   = ax.bar( hAduls[1][:-1], hAduls[0], width=9, color=cp2[6], \
-                        align='center', linewidth = '0', label='Adults', bottom=hChildren[0] )
+    bBirths = ax.bar( hBirths[1][:-1], hBirths[0], width=9, color='0.85', \
+                        align='center', linewidth = '0', label='Births')
+    bDeaths = ax.bar( hDeaths[1][:-1], hDeaths[0], width=7, color=cp2[7], \
+                        align='center', linewidth = '0', alpha=0.7, label='Children deaths')
     ticks = [b for b in list(bins) if b % 10 == 0]
     plt.xticks( ticks )
     
     plt.ylabel( '#' )
     plt.xlabel( 'Decade' )
 
-    ax.legend( loc= 'best', handles=[bAll, bAdults, bChildren], frameon=False )
+    ax.legend( loc= 'best', handles=[bBirths, bDeaths], frameon=False )
     
-    ax.axis((minBin+1,maxBin-1,0,max(hChildren[0]+hAduls[0])*1.05))
+    ax.axis((minBin+1,maxBin-1,0,max(hBirths[0])*1.05))
     remove2axis( ax )
 
     # Plot ratio
@@ -868,7 +876,7 @@ def childMotality( defunciones ):
     plt.ylabel( '% of children funerals (over total)' )
     plt.xlabel( 'Decade' )
 
-    ax.legend( loc= 'best', handles=[bAll, bAdults, bChildren], frameon=False )
+    ax.legend( loc= 'best', handles=pRatio, frameon=False )
     
     #ax.axis((minBin+1,maxBin-1,0,100))
     remove2axis( ax )    
