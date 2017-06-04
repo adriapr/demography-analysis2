@@ -637,25 +637,32 @@ def commonNames(  dictionary, n=8, splitName=True ):
 
         for iName, name in enumerate(namesUnique):
             for iPeriod, lowYear in enumerate(binEdges[:-1]):
-                countNames[iName][iPeriod] = sum([1 for (aN, aY) in zip(allNames, allYears) if aN == name and aY >= b and aY < lowYear+period])
-
-        # print(countNames[0:3][:])
-        # print( countNames[:][0] )
+                countNames[iName][iPeriod] = sum([1 for (aN, aY) in zip(allNames, allYears) if aN == name and aY >= lowYear and aY < lowYear+period])
 
         for iPeriod, lowYear in enumerate(binEdges[:-1]):
-            rankNames[:,iPeriod] = np.argsort( -countNames[:,iPeriod] ) # First is ranked 0
+            temp = np.argsort( -countNames[:,iPeriod] )
+            rankNames[temp,iPeriod] = np.arange(len(temp))
+            # rankNames[:,iPeriod] = np.argsort( -countNames[:,iPeriod] ) # First is ranked 0
 
-        # print(rankNames[0:3][:])
-        # print(namesUnique[0:3])
+        # for cc,rr,nn in zip (-countNames[:,0], rankNames[:,0], namesUnique):
+        #     print( '{:>12}: ({:>3} - {:>3})'.format(nn,cc,rr) )
 
-        fig = plt.figure(figsize=(20, 8))
-        ax = plt.subplot(111)
+        for rank in range(n-1):
+            print('Rank {}, '.format(rank), end='')
+            for iPeriod, lowYear in enumerate(binEdges[:-1]):
+                iNameList = [idx for idx,iRank in enumerate(rankNames[:,iPeriod]) if rank == iRank]
+                iName = iNameList[0]
+                print( '{} ({}), '.format(namesUnique[iName], countNames[iName][iPeriod]), end='' )
+                # print( '{} ({}) [{}], '.format(namesUnique[iName], countNames[iName][iPeriod], rankNames[iName,iPeriod]), end='' )
+            print( '' )
+
 
         # TODO: find all names that are in the top X
-        minRank = np.argmin(rankNames, 1)
+        # minRank = np.amin(rankNames, axis=1)
+        # topNamesIDs = [idx for idx,rank in enumerate(minRank) if rank < n]
 
-        print( minRank )
-
+        # fig = plt.figure(figsize=(20, 8))
+        # ax = plt.subplot(111)
 
         # for iName, name in enumerate(namesUnique): # I should iterate only over interesting ones
         #     ax.plot( [b+period/2 for b in binEdges[:-1]], rankNames[iName,:], color=cp2[idx%len(cp2)], linewidth = '4', label=name)
