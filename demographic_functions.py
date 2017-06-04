@@ -4,6 +4,7 @@
 #from plotly.graph_objs import *
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+import matplotlib.patches as mpatches
 import numpy as np
 import datetime
 import string
@@ -11,7 +12,7 @@ import sys
 import csv
 import re
 
-from collections import Counter, namedtuple
+from collections import Counter, defaultdict, namedtuple
 from unidecode   import unidecode
 
 # Colour pallete (kids to adults)
@@ -170,6 +171,8 @@ def createNacimientos( dicList ):
         persona['padreApellido2']       = noAccents(string.capwords(dic['APELL2PAD']))
         persona['madreApellido2']       = noAccents(string.capwords(dic['APELL2MAD']))
 
+        persona['padreOficio']          = noAccents(string.capwords(dic['OFICIOPAD']))
+
         persona['observaciones']    = dic['OBSERVACN']
 
         nacimientos.append( persona )
@@ -289,6 +292,8 @@ def mergePerson( n, d, id_matching ):
         persona['padreApellido2']       = n['padreApellido2']
         persona['madreApellido2']       = n['madreApellido2']
 
+        persona['padreOficio']          = n['padreOficio']
+
         persona['entierro']             = d['entierro']
         persona['defuncion']            = d['defuncion']
         persona['defuncionEstimado']    = d['defuncionEstimado']
@@ -327,6 +332,7 @@ def mergePeople( nacimientos, defunciones ):
     print( 'Numero de matchings: %d' % numM )
     return people
 
+
 # Analyse/plot data
 def printMostCommon( vec, n=float("inf") ):
 
@@ -336,6 +342,7 @@ def printMostCommon( vec, n=float("inf") ):
     print ("\nValores mas comunes")
     for idx in range(min(len(count), n)):
         print ( "%4d : %s" % (count.most_common()[idx][1], count.most_common()[idx][0]) )
+
 
 # Distributions
 def showDistribution( vec, stringX, stringY, fig=None, colourIN='0.7' ):
@@ -364,14 +371,16 @@ def showDistribution( vec, stringX, stringY, fig=None, colourIN='0.7' ):
     ax.axis((minBin-1,maxBin+1,0,max(histV[0])*1.05))
     remove2axis( ax )
     
-def showDistributionByDecade( vec, stringX, stringY, fig=None, colourIN='0.7' ):
+def showDistributionByDecade( vec, stringX, stringY, fig=None, colourIN='0.7', widthIN=9, binsIN=[1600, 1860] ):
 
 	#minBin = min([v for v in vec if v > 1]) # exclude values with 1 (as they are default for empty ones)
 	#maxBin = max(vec)
 
-    minBin = 1600
-    maxBin = 1860
-    
+    minBin = binsIN[0]
+    maxBin = binsIN[1]
+
+    vec = [v for v in vec if v >= minBin and v <= maxBin]
+
     binsV = range(minBin, maxBin + 1, 10)
     histV = np.histogram(vec, binsV)
     
@@ -379,7 +388,7 @@ def showDistributionByDecade( vec, stringX, stringY, fig=None, colourIN='0.7' ):
     if fig is None:
         fig = plt.figure()
     ax = plt.subplot(111)
-    bars = ax.bar( histV[1][:-1], histV[0], width=9, color=colourIN, align='center', linewidth = '0' )
+    bars = ax.bar( histV[1][:-1], histV[0], width=widthIN, color=colourIN, align='center', linewidth = '0' )
     
     ticks = [b for b in list(binsV) if b % 10 == 0]
     plt.xticks( ticks )
@@ -387,13 +396,14 @@ def showDistributionByDecade( vec, stringX, stringY, fig=None, colourIN='0.7' ):
     plt.ylabel( stringY )
     plt.xlabel( stringX )
     
-    ax.axis((minBin-1,maxBin+1,0,max(histV[0])*1.05))
+    ax.axis((minBin-6,maxBin-4,0,max(histV[0])*1.05))
     remove2axis( ax )
     
     return fig
 
+
 # Deaths by age
-def plotDeathAgeStatistics( merged ):
+def plotDeathAgeStatistics( merged, asPercentage=False ):
     # Get death ages
     edad = [p['edad'] for p in merged]
     
@@ -427,15 +437,24 @@ def plotDeathAgeStatistics( merged ):
     
     binsEdad = range(0, max(edad) + 1, 1)
     histEdad = np.histogram(edad, binsEdad)
-    
+
+    f_histEdad = histEdad[0].astype(float)
+
     # Plot distribution of age at death
     fig = plt.figure()
     ax = plt.subplot(111)
-    bars = ax.bar( histEdad[1][:-1], histEdad[0], alpha=0.7, align='center', linewidth = '0' )
     
-    plt.ylabel( 'Defunciones' )
+    if asPercentage:
+        plt.ylabel( 'Defunciones (%)' )
+        nElements = sum(f_histEdad)
+        f_histEdad = [i/nElements*100.0 for i in f_histEdad]
+    else:
+        plt.ylabel( 'Defunciones' )
+
     plt.xlabel( 'Edad al momento de defuncion' )
-       
+
+    bars = ax.bar( histEdad[1][:-1], f_histEdad, alpha=0.7, align='center', linewidth = '0' )
+
     # change the colors according to age
     for i, b in enumerate(bars):
         if i < 1:
@@ -451,23 +470,27 @@ def plotDeathAgeStatistics( merged ):
             b.set_color(cp[3])
             b.set_label('>11 años')
             
-    ax.axis((-1,100,0,max(histEdad[0])+25))
+    ax.axis((-1,100,0,max(f_histEdad)*1.1))
+
     ax.legend( loc= 'best', handles=[bars[12], bars[5], bars[1], bars[0]], frameon=False )
     plt.xticks( [b for b in binsEdad if b % 5 == 0] )
     remove2axis( ax ) 
     
     #py.iplot_mpl(fig)
 
+
+
 # Name of the village
 def wordInString(stringIN, match):
 
-    stringIN = re.sub('[’:;.,]', ' ', stringIN)
+    stringIN = re.sub('[”"’:;.,]', ' ', stringIN)
     string_list = stringIN.split()
 
     match_list = []
     for word in string_list:
-        if match in word:
-            match_list.append(word)
+        for m in match:
+            if m in word:
+                match_list.append(word)
     return match_list
 
 def getAlmonecirMentions( nacimientos, defunciones ):
@@ -481,7 +504,7 @@ def getAlmonecirMentions( nacimientos, defunciones ):
 
     for dic in nacimientos+defunciones:
         for key, val in dic.items():
-            nombres = wordInString(str(val).lower(), 'almon')
+            nombres = wordInString(str(val).lower(), ['almon', 'ayr'])
             for n in nombres:
                 try:
                     fecha = dic['nacimientoEstimado']
@@ -516,16 +539,19 @@ def getAlmonecirMentions( nacimientos, defunciones ):
     sc = []
     fig = plt.figure(figsize=(20, 3))
     ax = plt.subplot(111)
-    for idNom in [6,4,2,1,0]:
+    for idNom in [0,1,2,3,5,6]:
+    # for idNom in [6,4,2,1,0]:
 	#for idNom in range(max(lID)+1):
         xVec = [f.year for i,f in enumerate(lFecha) if lID[i] == idNom ]
-        yVec = [idNom] * len(xVec) + np.random.normal(0,0.1,len(xVec))
+        # yVec = [idNom] * len(xVec) + np.random.normal(0,0.1,len(xVec))
+        yVec = np.random.normal(0,0.1,len(xVec))
 
         strLabel = string.capwords(lNomUnique[idNom]) + " (" + str(dictNombres[lNomUnique[idNom]]) + ")"
         sc.append( ax.scatter(xVec, yVec, marker='.', s=200, alpha=0.5, color=cp2[idNom+1], label=strLabel) )
         
     ax.legend( loc= 'best', handles=sc[:], frameon=False, scatterpoints = 1 )
-    ax.axis((1605,1855,-0.5,max(lID)+0.5))
+    ax.axis((1605,1855,-0.5,+3.5))
+    # ax.axis((1605,1855,-0.5,max(lID)+0.5))
     ticks = [b for b in range(1605,1855) if b % 10 == 0]
     plt.xticks( ticks )
     
@@ -577,17 +603,15 @@ def commonNames(  dictionary, n=8, splitName=True ):
         numName = len(years)
         strLabel = name + " (" + str(numName) + ")"
 
-         
-
         xVec = years
-        yVec = [idx] * len(xVec) + np.random.normal(0,0.1,len(xVec))
+        yVec = [idx] * len(xVec) + np.random.normal(0,0.12,len(xVec))
 
         sc.append( ax.scatter(xVec, yVec, \
-                    color=cp2[idx%len(cp2)], marker='.', s=100, alpha=0.2, label=strLabel) )
+                    color=cp2[idx%len(cp2)], marker='.', s=100, alpha=0.5, label=strLabel) )
 
     # ax.legend( loc= 'best', handles=sc[::-1], frameon=False, scatterpoints = 1 )
 
-    xTicks = [b for b in range(1605, max(allYears)+5) if b % 10 == 0]
+    xTicks = [b for b in range(1625, max(allYears)+5) if b % 10 == 0]
     plt.xticks( xTicks )
 
     yTicks = range(n)
@@ -599,6 +623,47 @@ def commonNames(  dictionary, n=8, splitName=True ):
     remove2axis( ax )
     ax.spines['left'].set_visible(False)
     ax.axis((1610,1860,-1,n+1))
+
+    # plot rankings
+    if True:
+        minYear  = 1650
+        maxYear  = 1850
+        period   = 25
+        binEdges = list(range(minYear, maxYear+period, period))
+
+        namesUnique = [x[0] for x in count.most_common()]
+        countNames = np.zeros([len(namesUnique), len(binEdges)-1], 'int16')
+        rankNames  = np.zeros([len(namesUnique), len(binEdges)-1], 'int16')
+
+        for iName, name in enumerate(namesUnique):
+            for iPeriod, lowYear in enumerate(binEdges[:-1]):
+                countNames[iName][iPeriod] = sum([1 for (aN, aY) in zip(allNames, allYears) if aN == name and aY >= b and aY < lowYear+period])
+
+        # print(countNames[0:3][:])
+        # print( countNames[:][0] )
+
+        for iPeriod, lowYear in enumerate(binEdges[:-1]):
+            rankNames[:,iPeriod] = np.argsort( -countNames[:,iPeriod] ) # First is ranked 0
+
+        # print(rankNames[0:3][:])
+        # print(namesUnique[0:3])
+
+        fig = plt.figure(figsize=(20, 8))
+        ax = plt.subplot(111)
+
+        # TODO: find all names that are in the top X
+        minRank = np.argmin(rankNames, 1)
+
+        print( minRank )
+
+
+        # for iName, name in enumerate(namesUnique): # I should iterate only over interesting ones
+        #     ax.plot( [b+period/2 for b in binEdges[:-1]], rankNames[iName,:], color=cp2[idx%len(cp2)], linewidth = '4', label=name)
+        #     ax.text( binEdges[-1]+10, rankNames[iName,-1], name)
+
+        # ax.axis((0,5,0,10))
+
+        # plt.ylim([0,10])
 
 
     # Plot Histograms
@@ -652,9 +717,6 @@ def commonNames(  dictionary, n=8, splitName=True ):
         # all but bottom plot.
         fig.subplots_adjust(hspace=0.1)
         plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False)
-
-
-
 
 
 # Events by year
@@ -880,3 +942,82 @@ def childMotality( nacimientos, defunciones ):
     
     #ax.axis((minBin+1,maxBin-1,0,100))
     remove2axis( ax )    
+
+# Clean dataset
+def outputNamesToCleanData( nacimientos, defunciones ):
+
+    # List all (separated) names from less common to most common to remove strange things
+    allNames = []
+    idsNacimientos = defaultdict(list)
+    idsDefunciones = defaultdict(list)
+
+    for d in nacimientos:
+        names = d['nombre'].split() + d['padreNombre'].split() + d['madreNombre'].split()
+        if names:
+            allNames.extend( names )
+            for n in names:
+                idsNacimientos[n].append( d['ID'] )
+
+    for d in defunciones:
+        names = d['nombre'].split() + d['padreNombre'].split() + d['madreNombre'].split()
+        if names:
+            allNames.extend( names )
+            for n in names:
+                idsDefunciones[n].append( d['ID'] )
+
+
+    uniqueNames = set(allNames)
+
+    # Text output
+    print ("Nombres | unicos:%d | total: %d" % (len(uniqueNames), len(allNames)) )
+
+    print ("Nombre; Corregido; Comun; Borrar?; Catalan?; IDs Bautizos; IDs Defunciones" )
+    for n in uniqueNames:
+        print ( "%s; ; ; ; ; %s; %s" % (n, idsNacimientos.get(n), idsDefunciones.get(n)) )
+
+
+    # count = Counter(allNames)
+
+    # # Text output
+    # print ("Nombres | unicos:%d | total: %d" % (len(count), len(allNames)) )
+
+    # print ("Numero, Nombre, IDs Bautizos, IDs Defunciones, Corregido, Nombre comun, Borrar?, Catalan?" )
+    # for idx in reversed(range(len(count))):
+    #     name = count.most_common()[idx][0]
+    #     print ( "%4d, %s, %s, %s" % (count.most_common()[idx][1], name, idsNacimientos.get(name, ''), idsDefunciones.get(name, '')) )
+
+def outputStrangeDates( nacimientos, defunciones ):
+
+    # print( 'Fechas de nacimientos estranyas:' )
+    # for i, d in enumerate(nacimientos):
+    #     if i>2 and d['nacimientoEstimado'] < nacimientos[i-1]['nacimientoEstimado']:
+    #         print( '%d, %s' % (i, d['nacimientoEstimado']))
+
+    print( 'Fechas entre nacimiento y bautismo > 1 dia:' )
+    for i, d in enumerate(nacimientos):
+        if d['nacimiento'].year > 1 and d['bautismo'].year > 1:
+            if (d['nacimiento'] - d['bautismo']).days > 1:
+                print( '%d, %s - %s' % (i, d['nacimiento'], d['bautismo']))
+
+    print( 'Nacimiento posterior a bautizo:' )
+    for i, d in enumerate(nacimientos):
+        if d['nacimiento'].year > 1 and d['bautismo'].year > 1:
+            if d['nacimiento'] > d['bautismo']:
+                print( '%d, %s - %s' % (i, d['nacimiento'], d['bautismo']))
+
+    # print( 'Fechas de defunciones estranyas:' )
+    # for i, d in enumerate(defunciones):
+    #     if i>2 and d['defuncionEstimado'] < defunciones[i-1]['defuncionEstimado']:
+    #         print( '%d, %s' % (i, d['defuncionEstimado']))
+
+    print( 'Fechas entre entierro y defuncion > 1 dia:' )
+    for i, d in enumerate(defunciones):
+        if d['entierro'].year > 1 and d['defuncion'].year > 1:
+            if (d['entierro'] - d['defuncion']).days > 1:
+                print( '%d, %s - %s' % (i, d['entierro'], d['defuncion']))
+
+    print( 'entierro anterior a defuncion:' )
+    for i, d in enumerate(defunciones):
+        if d['entierro'].year > 1 and d['defuncion'].year > 1:
+            if d['entierro'] < d['defuncion']:
+                print( '%d, %s - %s' % (i, d['entierro'], d['defuncion']))
